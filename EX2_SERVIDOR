@@ -1,0 +1,73 @@
+import socket
+import threading
+
+
+host = '0.0.0.0'
+port = 9999
+
+
+usuarios = {
+    "Erick": "12345",
+    "Rodrigo": "12345",
+    "Cristobal": "12345",
+    "Jesus": "12345"
+}
+
+
+clients = []
+
+def broadcast(message, sender_socket):
+
+    for client in clients:
+        if client != sender_socket:
+            try:
+                client.send(message)
+            except:
+                clients.remove(client)
+
+def handle_client(client_socket):
+    
+    try:
+        # Autenticación
+        client_socket.send("Usuario: ".encode('utf-8'))
+        username = client_socket.recv(1024).decode('utf-8')
+        client_socket.send("Contraseña: ".encode('utf-8'))
+        password = client_socket.recv(1024).decode('utf-8')
+        
+        # Verificar autenticación
+        if usuarios.get(username) == password:
+            client_socket.send(f"Bienvenido al chat, {username}!\n".encode('utf-8'))
+            clients.append(client_socket)
+            broadcast(f"{username} se ha unido al chat.".encode('utf-8'), client_socket)
+            
+            # Recibir y enviar mensajes con nombre de usuario
+            while True:
+                message = client_socket.recv(1024)
+                if not message:
+                    break
+                broadcast(f"{username}: {message.decode('utf-8')}".encode('utf-8'), client_socket)
+        else:
+            client_socket.send("Autenticación fallida. Desconectando...\n".encode('utf-8'))
+    except:
+        pass
+    finally:
+        if client_socket in clients:
+            clients.remove(client_socket)
+        client_socket.close()
+
+def start_server():
+
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.bind((host, port))
+    server_socket.listen()
+    print("Servidor escuchando en", host, ":", port)
+
+    while True:
+        client_socket, addr = server_socket.accept()
+        print("Conexión establecida con", addr)
+        # Hilo para manejar cada cliente
+        client_thread = threading.Thread(target=handle_client, args=(client_socket,))
+        client_thread.start()
+
+#Inicio del servidor
+start_server()
